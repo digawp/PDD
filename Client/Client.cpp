@@ -1,3 +1,6 @@
+// Remove for production
+#define DEBUG
+
 #ifndef _CLIENT_H_
 #define _CLIENT_H_
 
@@ -6,8 +9,11 @@
 #include <iostream>
 #include <sstream>
 
+#include "cryptopp/files.h"
 #include "cryptopp/filters.h"
 #include "cryptopp/hex.h"
+#include "cryptopp/nbtheory.h"
+#include "cryptopp/osrng.h"
 #include "cryptopp/sha.h"
 
 std::string hash_fn(const std::string& file_name) {
@@ -27,12 +33,16 @@ std::string hash_fn(const std::string& file_name) {
   }
   hf.MessageEnd();
 
-  std::string encoded_digest;
+  return digest;
+}
 
-  CryptoPP::StringSource(digest, true,
-      new CryptoPP::HexEncoder(new CryptoPP::StringSink(encoded_digest)));
 
-  return encoded_digest;
+
+Integer generate_r(Integer& n) {
+  Integer r;
+  do {
+    /* code */
+  } while (!CryptoPP::RelativelyPrime(n, r));
 }
 
 int main(int argc, char const *argv[]) {
@@ -41,8 +51,28 @@ int main(int argc, char const *argv[]) {
       file_name = argv[1];
   }
 
-  std::string hash = hash_fn(file_name);
-  std::cout << hash << std::endl;
+  std::string digest = hash_fn(file_name);
+
+  #ifdef DEBUG
+  CryptoPP::StringSource(digest, true,
+      new CryptoPP::HexEncoder(new CryptoPP::FileSink(std::cout)));
+  std::cout << std::endl;
+  #endif
+
+  // Read (e,n) from file
+
+  // Generate r
+
+  // Calculate digest * r^e
+
+  // Send over
+
+  // Receive digest^d
+
+  // Encrypt file by block (size?)
+
+  // Send over encrypted file.
+
   return 0;
 }
 

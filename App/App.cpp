@@ -82,14 +82,18 @@ void ocall_print(const char* str) {
 
 int main(int argc, char const *argv[]) {
     if (initialize_enclave() < 0) {
-        std::cout << "noob" << std::endl;
+        std::cout << "Failed to initialize enclave" << std::endl;
     }
-    int ptr;
-    sgx_status_t status = generate_random_number(global_eid, &ptr);
-    std::cout << status << std::endl;
-    if (status != SGX_SUCCESS) {
-        std::cout << "noob" << std::endl;
-    }
-    printf("Random number: %d\n", ptr);
+
+    // Open connection, block to receive data
+
+    // Data received, sign with pvt key
+
+    // send back signed data.
+
+    // Receive file
+
+    // Seal and store
+
     return 0;
 }
