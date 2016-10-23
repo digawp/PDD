@@ -98,15 +98,44 @@ int main(int argc, char const *argv[]) {
   std::cout << std::endl;
   #endif
 
-  // Read (e,n) from file
+  // Load (e,n)
+  RSA::PublicKey pubkey;
+  {
+    CryptoPP::FileSource pubkey_file(
+        "pubkey.txt", true, new CryptoPP::Base64Decoder());
+    CryptoPP::ByteQueue byte_queue;
+    pubkey_file.TransferTo(byte_queue);
+    pubkey.Load(byte_queue);
+  }
 
-  // Generate r
+  Integer m((byte const*)digest.data(), 32);
+  Integer e = pubkey.GetPublicExponent();
+  Integer n = pubkey.GetModulus();
+  Integer r = generate_r(n);
+  #ifdef DEBUG
+  std::cout << "e: " << e << std::endl;
+  std::cout << "n: " << n << std::endl;
+  std::cout << "r: " << n << std::endl;
+  std::cout << "m: " << m << std::endl;
+  #endif
 
-  // Calculate digest * r^e
+  CryptoPP::ModularArithmetic modn(n);
+
+  Integer res = modn.Exponentiate(r, e);
+  #ifdef DEBUG
+  std::cout << "r^e mod n = " << res << std::endl;
+  #endif
+
+  res = modn.Multiply(m, res);
+  #ifdef DEBUG
+  std::cout << "m.r^e mod n = " << res << std::endl;
+  #endif
 
   // Send over
 
   // Receive digest^d
+
+  // Better perform check if we get back the real digest..
 
   // Encrypt file by block (size?)
 
