@@ -69,9 +69,19 @@ void generate_pub_pvt_key_pair() {
 
 Integer generate_r(Integer& n) {
   Integer r;
+  // Scratch Area
+
+  #ifdef DEBUG
+  std::cout << "Bitcount: " << n.BitCount() << std::endl;
+  #endif
+  CryptoPP::AutoSeededRandomPool rng;
   do {
-    /* code */
+    CryptoPP::SecByteBlock scratch(n.ByteCount()-1);
+    // Random Block
+    rng.GenerateBlock(scratch, scratch.size());
+    r.Decode(scratch.BytePtr(), scratch.SizeInBytes());
   } while (!CryptoPP::RelativelyPrime(n, r));
+  return r;
 }
 
 int main(int argc, char const *argv[]) {
