@@ -4,10 +4,10 @@
 #ifndef _CLIENT_H_
 #define _CLIENT_H_
 
+#include <cassert>
 #include <cstdint>
 #include <fstream>
 #include <iostream>
-#include <sstream>
 
 #include "cryptopp/base64.h"
 #include "cryptopp/files.h"
@@ -50,7 +50,7 @@ void generate_pub_pvt_key_pair() {
   // otherwise, an appropriate typedef'ed type from rsa.h would have been used.
   CryptoPP::AutoSeededRandomPool rng;
   RSA::PrivateKey privkey;
-  privkey.Initialize(rng, 1024);
+  privkey.Initialize(rng, 3072, 3);
 
   // With the current version of Crypto++, MessageEnd() needs to be called
   // explicitly because Base64Encoder doesn't flush its buffer on destruction.
@@ -133,9 +133,41 @@ int main(int argc, char const *argv[]) {
 
   // Send over
 
-  // Receive digest^d
+  // ================================
+  // Simulate P signing
+  // ================================
 
-  // Better perform check if we get back the real digest..
+  // Load (d)
+  RSA::PrivateKey pvtkey;
+  {
+    CryptoPP::ByteQueue bytes;
+    CryptoPP::FileSource file("privkey.txt", true, new CryptoPP::Base64Decoder);
+    file.TransferTo(bytes);
+    bytes.MessageEnd();
+    pvtkey.Load(bytes);
+  }
+
+  Integer d = pvtkey.GetPrivateExponent();
+  #ifdef DEBUG
+  assert(e == pvtkey.GetPublicExponent());
+  assert(n == pvtkey.GetModulus());
+  #endif
+
+  Integer hdr = modn.Exponentiate(res, d);
+  #ifdef DEBUG
+  std::cout << "m'^d mod n = " << hdr << std::endl;
+  #endif
+  Integer hd_temp = modn.Exponentiate(m, d);
+
+  // Receive digest^d
+  Integer hd = modn.Divide(hdr, r);
+
+  // Check if we get back the real digest
+  Integer should_be_m = modn.Exponentiate(hd, e);
+  #ifdef DEBUG
+  assert(hd == hd_temp);
+  assert(m == should_be_m);
+  #endif
 
   // Encrypt file by block (size?)
 
