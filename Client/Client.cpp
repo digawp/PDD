@@ -23,7 +23,8 @@
 using CryptoPP::Integer;
 using CryptoPP::RSA;
 
-std::string hash_fn(const std::string& file_name) {
+// For understanding purposes only
+std::string hash_file(const std::string& file_name) {
   std::string digest;
   CryptoPP::SHA256 sha256;
   CryptoPP::HashFilter hf(sha256, new CryptoPP::StringSink(digest));
@@ -43,6 +44,16 @@ std::string hash_fn(const std::string& file_name) {
   return digest;
 }
 
+std::string hash_file_stream(const std::string& file_name) {
+  std::string digest;
+  CryptoPP::SHA256 sha256;
+  CryptoPP::FileSource fs(file_name.c_str(), true /* PumpAll */,
+    new CryptoPP::HashFilter(sha256,
+      new CryptoPP::StringSink(digest)
+    ) // HashFilter
+  ); // FileSource
+  return digest;
+}
 
 void generate_pub_pvt_key_pair() {
   // InvertibleRSAFunction is used directly only because the private key
@@ -103,10 +114,12 @@ void load_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
 int main(int argc, char const *argv[]) {
   std::string file_name = "samples/1";
   if (argc > 1) {
-      file_name = argv[1];
+    file_name = argv[1];
   }
 
-  std::string digest = hash_fn(file_name);
+  // generate_pub_pvt_key_pair();
+
+  std::string digest = hash_file_stream(file_name);
 
   #ifdef DEBUG
   CryptoPP::StringSource(digest, true,
