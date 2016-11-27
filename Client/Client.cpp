@@ -84,6 +84,22 @@ Integer generate_r(Integer& n) {
   return r;
 }
 
+/**
+ * @brief      Loads a RSA key from the specified file_name. Can be used for
+ * both public and private RSA keys.
+ *
+ * @param      key        The CryptoPP RSA key instance
+ * @param[in]  file_name  The file name
+ */
+void load_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
+  CryptoPP::ByteQueue byte_queue;
+  CryptoPP::FileSource key_file(
+      file_name.c_str(), true, new CryptoPP::Base64Decoder());
+  key_file.TransferTo(byte_queue);
+  byte_queue.MessageEnd();
+  key.Load(byte_queue);
+}
+
 int main(int argc, char const *argv[]) {
   std::string file_name = "samples/1";
   if (argc > 1) {
@@ -100,13 +116,7 @@ int main(int argc, char const *argv[]) {
 
   // Load (e,n)
   RSA::PublicKey pubkey;
-  {
-    CryptoPP::FileSource pubkey_file(
-        "pubkey.txt", true, new CryptoPP::Base64Decoder());
-    CryptoPP::ByteQueue byte_queue;
-    pubkey_file.TransferTo(byte_queue);
-    pubkey.Load(byte_queue);
-  }
+  load_key(pubkey, "pubkey.txt");
 
   Integer m((byte const*)digest.data(), 32);
   Integer e = pubkey.GetPublicExponent();
@@ -139,13 +149,7 @@ int main(int argc, char const *argv[]) {
 
   // Load (d)
   RSA::PrivateKey pvtkey;
-  {
-    CryptoPP::ByteQueue bytes;
-    CryptoPP::FileSource file("privkey.txt", true, new CryptoPP::Base64Decoder);
-    file.TransferTo(bytes);
-    bytes.MessageEnd();
-    pvtkey.Load(bytes);
-  }
+  load_key(pvtkey, "privkey.txt");
 
   Integer d = pvtkey.GetPrivateExponent();
   #ifdef DEBUG
