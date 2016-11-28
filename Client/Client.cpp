@@ -1,8 +1,12 @@
-// Remove for production
-#define DEBUG
-
 #ifndef _CLIENT_H_
 #define _CLIENT_H_
+
+// Remove for production
+#define DEBUG
+#ifdef DEBUG
+#define DEBUG_LOG(msg) do { std::cout << msg << std::endl; } while(0);
+#endif
+
 
 #include <cassert>
 #include <cstdint>
@@ -82,9 +86,9 @@ Integer generate_r(Integer& n) {
   Integer r;
   // Scratch Area
 
-  #ifdef DEBUG
-  std::cout << "Bitcount: " << n.BitCount() << std::endl;
-  #endif
+  DEBUG_LOG("Bitcount:");
+  DEBUG_LOG(n.BitCount());
+
   CryptoPP::AutoSeededRandomPool rng;
   do {
     CryptoPP::SecByteBlock scratch(n.ByteCount()-1);
@@ -145,14 +149,12 @@ int main(int argc, char const *argv[]) {
   CryptoPP::ModularArithmetic modn(n);
 
   Integer res = modn.Exponentiate(r, e);
-  #ifdef DEBUG
-  std::cout << "r^e mod n = " << res << std::endl;
-  #endif
+  DEBUG_LOG("r^e mod n = ");
+  DEBUG_LOG(res);
 
   res = modn.Multiply(m, res);
-  #ifdef DEBUG
-  std::cout << "m.r^e mod n = " << res << std::endl;
-  #endif
+  DEBUG_LOG("m.r^e mod n = ");
+  DEBUG_LOG(res);
 
   // Send over
 
@@ -171,9 +173,9 @@ int main(int argc, char const *argv[]) {
   #endif
 
   Integer hdr = modn.Exponentiate(res, d);
-  #ifdef DEBUG
-  std::cout << "m'^d mod n = " << hdr << std::endl;
-  #endif
+  DEBUG_LOG("m'^d mod n = ");
+  DEBUG_LOG(hdr);
+
   Integer hd_temp = modn.Exponentiate(m, d);
 
   // Receive digest^d
@@ -190,6 +192,10 @@ int main(int argc, char const *argv[]) {
 
   // Send over encrypted file.
 
+  std::cout << "Size of h^d: " << hd.BitCount() << std::endl;
+  std::cout << "MinEncodedSize: " << hd.MinEncodedSize() << std::endl;
+  std::cout << "Byte count: " << hd.ByteCount() << std::endl;
+  DEBUG_LOG("Reached the end. So most probably works as expected.");
   return 0;
 }
 
