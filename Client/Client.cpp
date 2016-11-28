@@ -18,6 +18,7 @@
 #include "cryptopp/filters.h"
 #include "cryptopp/hex.h"
 #include "cryptopp/integer.h"
+#include "cryptopp/modes.h"
 #include "cryptopp/nbtheory.h"
 #include "cryptopp/osrng.h"
 #include "cryptopp/rsa.h"
@@ -115,6 +116,50 @@ void load_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
   key.Load(byte_queue);
 }
 
+std::string encrypt_file_by_chunks(
+    const std::string& file_name, const Integer input_key) {
+  CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aes;
+  size_t input_key_size = input_key.MinEncodedSize();
+
+  if (aes.IsValidKeyLength(input_key_size)) {
+    CryptoPP::SecByteBlock key(input_key_size);
+    input_key.Encode(key.BytePtr(), input_key_size);
+    aes.SetKey(key, key.size());
+  } else {
+    byte input_key_byte[input_key_size];
+    input_key.Encode(input_key_byte, input_key_size);
+
+    CryptoPP::SecByteBlock digest(CryptoPP::SHA256::DIGESTSIZE);
+    CryptoPP::SHA256 sha256;
+    sha256.CalculateDigest(digest.BytePtr(), input_key_byte, input_key_size);
+
+    aes.SetKey(digest, digest.size());
+  }
+  // Use the key to encrypt the file every x bytes (chunk)
+  const unsigned int CHUNK_SIZE = 512;
+  char char_block[CHUNK_SIZE] = {'\0'};
+  char token[CHUNK_SIZE] = {'\0'};
+  std::vector<std::string> full_cipher;
+
+  std::ifstream file(file_name);
+  file.read(char_block, sizeof(char_block));
+  while(file.gcount() > 0) {
+    std::string plain(char_block, file.gcount());
+    std::string cipher;
+    // The StreamTransformationFilter adds padding
+    //  as required. ECB and CBC Mode must be padded
+    //  to the block size of the cipher.
+    CryptoPP::StringSource ss1(plain, true,
+        new CryptoPP::StreamTransformationFilter(aes, new CryptoPP::StringSink(cipher))
+    ); // StringSource
+    DEBUG_LOG("Length of cipher: " + cipher.size());
+    DEBUG_LOG("Length of chunk: " + CHUNK_SIZE);
+    file.read(char_block, sizeof(char_block));
+  }
+
+  return "";
+}
+
 int main(int argc, char const *argv[]) {
   std::string file_name = "samples/1";
   if (argc > 1) {
@@ -189,6 +234,7 @@ int main(int argc, char const *argv[]) {
   #endif
 
   // Encrypt file by block (size?)
+  std::string token = encrypt_file_by_chunks(file_name, hd);
 
   // Send over encrypted file.
 
