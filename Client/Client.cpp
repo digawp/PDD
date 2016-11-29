@@ -107,7 +107,7 @@ Integer generate_r(Integer& n) {
  * @param      key        The CryptoPP RSA key instance
  * @param[in]  file_name  The file name
  */
-void load_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
+void load_rsa_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
   CryptoPP::ByteQueue byte_queue;
   CryptoPP::FileSource key_file(
       file_name.c_str(), true, new CryptoPP::Base64Decoder());
@@ -178,7 +178,7 @@ int main(int argc, char const *argv[]) {
 
   // Load (e,n)
   RSA::PublicKey pubkey;
-  load_key(pubkey, "pubkey.txt");
+  load_rsa_key(pubkey, "pubkey.txt");
 
   Integer m((byte const*)digest.data(), 32);
   Integer e = pubkey.GetPublicExponent();
@@ -209,7 +209,7 @@ int main(int argc, char const *argv[]) {
 
   // Load (d)
   RSA::PrivateKey pvtkey;
-  load_key(pvtkey, "privkey.txt");
+  load_rsa_key(pvtkey, "privkey.txt");
 
   Integer d = pvtkey.GetPrivateExponent();
   #ifdef DEBUG
@@ -231,6 +231,9 @@ int main(int argc, char const *argv[]) {
   #ifdef DEBUG
   assert(hd == hd_temp);
   assert(m == should_be_m);
+  std::cout << "Size of h^d: " << hd.BitCount() << std::endl;
+  std::cout << "MinEncodedSize: " << hd.MinEncodedSize() << std::endl;
+  std::cout << "Byte count: " << hd.ByteCount() << std::endl;
   #endif
 
   // Encrypt file by block (size?)
@@ -238,9 +241,6 @@ int main(int argc, char const *argv[]) {
 
   // Send over encrypted file.
 
-  std::cout << "Size of h^d: " << hd.BitCount() << std::endl;
-  std::cout << "MinEncodedSize: " << hd.MinEncodedSize() << std::endl;
-  std::cout << "Byte count: " << hd.ByteCount() << std::endl;
   DEBUG_LOG("Reached the end. So most probably works as expected.");
   return 0;
 }
