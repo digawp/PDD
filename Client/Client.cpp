@@ -116,48 +116,112 @@ void load_rsa_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
   key.Load(byte_queue);
 }
 
-std::string encrypt_file_by_chunks(
-    const std::string& file_name, const Integer input_key) {
-  CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aes;
+/**
+ * @brief      Sets the symmetric key of a cipher given an input key.
+ *
+ * @param      cipher     The cipher. Currently assumes AES as the cipher.
+ * @param[in]  input_key  The input key
+ */
+void set_symm_key(CryptoPP::SymmetricCipher& cipher, const Integer& input_key) {
   size_t input_key_size = input_key.MinEncodedSize();
 
-  if (aes.IsValidKeyLength(input_key_size)) {
+  if (cipher.IsValidKeyLength(input_key_size)) {
     CryptoPP::SecByteBlock key(input_key_size);
     input_key.Encode(key.BytePtr(), input_key_size);
-    aes.SetKey(key, key.size());
+    cipher.SetKey(key, key.size());
   } else {
     byte input_key_byte[input_key_size];
     input_key.Encode(input_key_byte, input_key_size);
 
+    // Take the SHA256 digest of input as symmetric key to transform it to key
+    // of valid keylength for the cipher
     CryptoPP::SecByteBlock digest(CryptoPP::SHA256::DIGESTSIZE);
     CryptoPP::SHA256 sha256;
     sha256.CalculateDigest(digest.BytePtr(), input_key_byte, input_key_size);
 
-    aes.SetKey(digest, digest.size());
+    cipher.SetKey(digest, digest.size());
   }
+}
+
+/**
+ * @brief      Encrypts file by chunks with the specified key. AES on ECB is
+ *             used as the encryption algorithm. The output file will be named
+ *             <file_name>.enc
+ *
+ * @param[in]  file_name  The file name
+ * @param[in]  key        The key
+ *
+ * @return     The access token for the file.
+ */
+std::string encrypt_file_by_chunks(
+    const std::string& file_name, const Integer& key) {
+  CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption aes;
+  set_symm_key(aes, key);
+
   // Use the key to encrypt the file every x bytes (chunk)
-  const unsigned int CHUNK_SIZE = 512;
+  // Use 1023 as CHUNK_SIZE to allow 1 byte padding (indicate endpoint of the
+  // ciphertext)
+  const unsigned int CHUNK_SIZE = 1023;
   char char_block[CHUNK_SIZE] = {'\0'};
-  char token[CHUNK_SIZE] = {'\0'};
-  std::vector<std::string> full_cipher;
+  char token_buf[CHUNK_SIZE] = {'\0'};
 
-  std::ifstream file(file_name);
-  file.read(char_block, sizeof(char_block));
-  while(file.gcount() > 0) {
-    std::string plain(char_block, file.gcount());
+  std::ifstream in_file(file_name);
+  std::ofstream out_file(file_name + ".enc", std::ios::binary);
+  in_file.read(char_block, sizeof(char_block));
+  while(in_file.gcount() > 0) {
+    std::string plain(char_block, in_file.gcount());
     std::string cipher;
-    // The StreamTransformationFilter adds padding
-    //  as required. ECB and CBC Mode must be padded
-    //  to the block size of the cipher.
-    CryptoPP::StringSource ss1(plain, true,
-        new CryptoPP::StreamTransformationFilter(aes, new CryptoPP::StringSink(cipher))
-    ); // StringSource
-    DEBUG_LOG("Length of cipher: " + cipher.size());
-    DEBUG_LOG("Length of chunk: " + CHUNK_SIZE);
-    file.read(char_block, sizeof(char_block));
-  }
 
-  return "";
+    // The StreamTransformationFilter adds padding as required. ECB and CBC Mode
+    // must be padded to the block size of the cipher.
+    CryptoPP::StringSource sse(plain, true,
+        new CryptoPP::StreamTransformationFilter(aes,
+            new CryptoPP::StringSink(cipher)
+        ) // StreamTransformationFilter
+    ); // StringSource
+       //
+    out_file << cipher;
+
+    for (int i = 0; i < CHUNK_SIZE; ++i) {
+      token_buf[i] ^= cipher[i];
+    }
+
+    std::memset(char_block, 0, sizeof(char_block));
+    in_file.read(char_block, sizeof(char_block));
+  }
+  in_file.close();
+  out_file.close();
+
+  std::string token;
+  CryptoPP::StringSource sst(token_buf, true,
+      new CryptoPP::HexEncoder(new CryptoPP::StringSink(token))
+  );
+  return token;
+}
+
+/**
+ * @brief      Decrypts an encrypted file. The .enc suffix is implicit.
+ *
+ * @param[in]  file_name  The file name
+ * @param[in]  key        The key
+ */
+void decrypt_file(const std::string& file_name, const Integer& key) {
+  CryptoPP::ECB_Mode<CryptoPP::AES>::Decryption aes;
+  set_symm_key(aes, key);
+
+  std::ofstream dec(file_name, std::ios::binary);
+  std::ifstream enc(file_name + ".enc", std::ios::binary | std::ios::app);
+
+  char buf[1024];
+  enc.read(buf, sizeof(buf));
+  while (enc.gcount() > 0) {
+    std::string read(buf, enc.gcount());
+    std::cout << "Read: " << enc.gcount() << std::endl;
+    CryptoPP::StringSource ss(read, true,
+      new CryptoPP::StreamTransformationFilter(aes, new CryptoPP::FileSink(dec))
+    );
+    enc.read(buf, sizeof(buf));
+  }
 }
 
 int main(int argc, char const *argv[]) {
@@ -238,6 +302,7 @@ int main(int argc, char const *argv[]) {
 
   // Encrypt file by block (size?)
   std::string token = encrypt_file_by_chunks(file_name, hd);
+  // decrypt_file(file_name, hd);
 
   // Send over encrypted file.
 
