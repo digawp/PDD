@@ -22,6 +22,13 @@
 
 #define PORT "9876"
 
+#define DEBUG
+#ifdef DEBUG
+#define DEBUG_LOG(msg) do { std::cout << msg << std::endl; } while(0);
+#endif
+
+#include "sgx_tseal.h"
+
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
 
@@ -114,13 +121,7 @@ bool bind(struct addrinfo* servinfo_res, int* sock_fd) {
     return p != NULL;
 }
 
-int main(int argc, char const *argv[]) {
-    if (initialize_enclave() < 0) {
-        std::cout << "Failed to initialize enclave" << std::endl;
-        return 1;
-    }
-
-    // Open connection, block to receive data
+int bind_and_listen() {
     struct addrinfo* servinfo;
     struct addrinfo hints;
     memset(&hints, 0, sizeof(hints));
@@ -146,6 +147,17 @@ int main(int argc, char const *argv[]) {
         return 1;
     }
     std::cout << "Listening on port " << PORT << std::endl;
+
+    return sock_fd;
+}
+
+int main(int argc, char const *argv[]) {
+    if (initialize_enclave() < 0) {
+        std::cout << "Failed to initialize enclave" << std::endl;
+        return 1;
+    }
+    // Open connection, block to receive data
+    int sock_fd = bind_and_listen();
 
     int new_conn_fd;
     struct sockaddr_storage their_addr;
@@ -175,12 +187,25 @@ int main(int argc, char const *argv[]) {
             close(sock_fd);
             char buffer[1024];
             int bytes_recv = 0;
+
+            // Receive blinded hash
+            if (recv(new_conn_fd, buffer, 1024, 0) != 32) {
+                std::cout << "Not SHA-256 digest. Disconnect" << std::endl;
+                close(new_conn_fd);
+                exit(0);
+            }
+
+            // ecall to sign the data
+            // Send back signed data
+
+            // Receive file
             while((bytes_recv = recv(new_conn_fd, buffer, 1024, 0)) > 0) {
                 buffer[bytes_recv] = '\0';
                 std::cout << buffer;
                 if (send(new_conn_fd, buffer, strlen(buffer), 0) == -1) {
                     perror("send");
                 }
+                // Seal and store
             }
             std::cout << "Close" << std::endl;
             close(new_conn_fd);
@@ -189,14 +214,6 @@ int main(int argc, char const *argv[]) {
         // Parent doesn't need to handle the new connection
         close(new_conn_fd);
     }
-
-    // Data received, sign with pvt key
-
-    // send back signed data.
-
-    // Receive file
-
-    // Seal and store
 
     return 0;
 }
