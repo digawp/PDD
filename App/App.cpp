@@ -93,11 +93,6 @@ int initialize_enclave() {
     return 0;
 }
 
-// OCall implementations
-void ocall_print(const char* str) {
-    printf("%s\n", str);
-}
-
 bool bind(struct addrinfo* servinfo_res, int* sock_fd) {
     struct addrinfo* p;
     for (p = servinfo_res; p != NULL; p = p->ai_next){

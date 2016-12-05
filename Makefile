@@ -74,7 +74,7 @@ else
 endif
 
 # App_Cpp_Files := App/App.cpp $(wildcard App/Edger8rSyntax/*.cpp) $(wildcard App/TrustedLibrary/*.cpp)
-App_Cpp_Files := App/App.cpp
+App_Cpp_Files := $(wildcard App/*.cpp)
 # App_Include_Paths := -IInclude -IApp -I$(SGX_SDK)/include
 App_Include_Paths := -IApp -I$(SGX_SDK)/include
 
@@ -93,7 +93,7 @@ else
 endif
 
 App_Cpp_Flags := $(App_C_Flags) -std=c++11
-App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread
+App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -lcrypto++
 
 ifneq ($(SGX_MODE), HW)
 	App_Link_Flags += -lsgx_uae_service_sim
