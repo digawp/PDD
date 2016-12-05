@@ -13,13 +13,17 @@ Currently the repo only consist of the C.
 
 ### P aka Proxy
 
-None yet.
+Make sure you have Intel SGX-capable hardware and it is enabled on BIOS (disabled by default).
+
+    make run SGX_MODE=HW SGX_DEBUG=1
+
+Omit `run` if you just want to compile without running it.
 
 ### C aka Client
 
 Currently C can only hash a file and carry out blind signature protocol by itself.
 
-Don't forget to run the proxy first before running the client (when the proxy has been implemented, that is).
+Don't forget to run the proxy first before running the client.
 
     make ClientApp
     ./ClientApp
