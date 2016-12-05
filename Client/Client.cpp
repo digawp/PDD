@@ -2,7 +2,10 @@
 #define _CLIENT_H_
 
 // Remove for production
+#ifndef DEBUG
 #define DEBUG
+#endif
+
 #ifdef DEBUG
 #define DEBUG_LOG(msg) do { std::cout << msg << std::endl; } while(0);
 #endif
@@ -24,6 +27,10 @@
 #include "cryptopp/rsa.h"
 #include "cryptopp/sha.h"
 #include "cryptopp/secblock.h"
+
+#include "Network.h"
+
+#define CHUNK_SIZE 1024
 
 using CryptoPP::Integer;
 using CryptoPP::RSA;
@@ -159,10 +166,9 @@ std::string encrypt_file_by_chunks(
   set_symm_key(aes, key);
 
   // Use the key to encrypt the file every x bytes (chunk)
-  // Use 1023 as CHUNK_SIZE to allow 1 byte padding (indicate endpoint of the
-  // ciphertext)
-  const unsigned int CHUNK_SIZE = 1023;
-  char char_block[CHUNK_SIZE] = {'\0'};
+  // char_block size is CHUNK_SIZE-1 to allow 1 byte padding (indicate endpoint
+  // of the ciphertext)
+  char char_block[CHUNK_SIZE-1] = {'\0'};
   char token_buf[CHUNK_SIZE] = {'\0'};
 
   std::ifstream in_file(file_name);
@@ -179,7 +185,7 @@ std::string encrypt_file_by_chunks(
             new CryptoPP::StringSink(cipher)
         ) // StreamTransformationFilter
     ); // StringSource
-       //
+    std::cout << "Cipher size: " << cipher.size() << std::endl;
     out_file << cipher;
 
     for (int i = 0; i < CHUNK_SIZE; ++i) {
@@ -210,7 +216,7 @@ void decrypt_file(const std::string& file_name, const Integer& key) {
   set_symm_key(aes, key);
 
   std::ofstream dec(file_name, std::ios::binary);
-  std::ifstream enc(file_name + ".enc", std::ios::binary | std::ios::app);
+  std::ifstream enc(file_name + ".enc", std::ios::binary);
 
   char buf[1024];
   enc.read(buf, sizeof(buf));
@@ -222,6 +228,32 @@ void decrypt_file(const std::string& file_name, const Integer& key) {
     );
     enc.read(buf, sizeof(buf));
   }
+}
+
+Integer p_sign(const Integer& message) {
+  // Load (d)
+  RSA::PrivateKey pvtkey;
+  load_rsa_key(pvtkey, "privkey.txt");
+
+  Integer d = pvtkey.GetPrivateExponent();
+  CryptoPP::ModularArithmetic modn(pvtkey.GetModulus());
+
+  return modn.Exponentiate(message, d);
+}
+
+bool send_file_by_chunks(const std::string& file_name, int socket_fd) {
+  char buf[CHUNK_SIZE];
+  std::ifstream encrypted_file(file_name);
+  encrypted_file.read(buf, sizeof(buf));
+
+  while(encrypted_file.gcount() > 0) {
+    if (!send(socket_fd, buf, encrypted_file.gcount())) {
+      perror("send");
+      return false;
+    }
+    encrypted_file.read(buf, sizeof(buf));
+  }
+  return true;
 }
 
 int main(int argc, char const *argv[]) {
@@ -249,62 +281,59 @@ int main(int argc, char const *argv[]) {
   Integer n = pubkey.GetModulus();
   Integer r = generate_r(n);
   #ifdef DEBUG
-  std::cout << "e: " << e << std::endl;
-  std::cout << "n: " << n << std::endl;
-  std::cout << "r: " << n << std::endl;
+  // std::cout << "e: " << e << std::endl;
+  // std::cout << "n: " << n << std::endl;
+  // std::cout << "r: " << r << std::endl;
   std::cout << "m: " << m << std::endl;
   #endif
 
   CryptoPP::ModularArithmetic modn(n);
 
   Integer res = modn.Exponentiate(r, e);
-  DEBUG_LOG("r^e mod n = ");
-  DEBUG_LOG(res);
 
   res = modn.Multiply(m, res);
   DEBUG_LOG("m.r^e mod n = ");
   DEBUG_LOG(res);
 
+  std::cout << "Min encoded size: " << res.MinEncodedSize() << std::endl;
+
+  char payload[res.MinEncodedSize()];
+
+  res.Encode((byte*)payload, res.MinEncodedSize());
+
   // Send over
+  int socket_fd = connect_to_p();
+  if (!send(socket_fd, payload, res.MinEncodedSize())){
+    perror("send");
+  }
 
-  // ================================
-  // Simulate P signing
-  // ================================
+  // Receive signed blinded hash
+  size_t bytes_recv = receive(socket_fd, payload, sizeof(payload));
+  Integer received_signature((byte*)payload, bytes_recv);
 
-  // Load (d)
-  RSA::PrivateKey pvtkey;
-  load_rsa_key(pvtkey, "privkey.txt");
-
-  Integer d = pvtkey.GetPrivateExponent();
   #ifdef DEBUG
-  assert(e == pvtkey.GetPublicExponent());
-  assert(n == pvtkey.GetModulus());
+  Integer hdr = p_sign(res);
+  assert(received_signature == hdr);
   #endif
 
-  Integer hdr = modn.Exponentiate(res, d);
-  DEBUG_LOG("m'^d mod n = ");
-  DEBUG_LOG(hdr);
-
-  Integer hd_temp = modn.Exponentiate(m, d);
-
-  // Receive digest^d
-  Integer hd = modn.Divide(hdr, r);
+  Integer hd = modn.Divide(received_signature, r);
 
   // Check if we get back the real digest
   Integer should_be_m = modn.Exponentiate(hd, e);
   #ifdef DEBUG
-  assert(hd == hd_temp);
   assert(m == should_be_m);
-  std::cout << "Size of h^d: " << hd.BitCount() << std::endl;
-  std::cout << "MinEncodedSize: " << hd.MinEncodedSize() << std::endl;
-  std::cout << "Byte count: " << hd.ByteCount() << std::endl;
   #endif
 
-  // Encrypt file by block (size?)
+  // Encrypt file by chunks
   std::string token = encrypt_file_by_chunks(file_name, hd);
+  DEBUG_LOG("Token:");
+  DEBUG_LOG(token);
   // decrypt_file(file_name, hd);
 
   // Send over encrypted file.
+  if (!send_file_by_chunks(file_name+".enc", socket_fd)) {
+    DEBUG_LOG("Error when sending encrypted file.");
+  }
 
   DEBUG_LOG("Reached the end. So most probably works as expected.");
   return 0;

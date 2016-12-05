@@ -1,7 +1,12 @@
 #include <cstdio>
+#include <fstream>
 #include <iostream>
 #include "Enclave_u.h"
+#include "sgx_tseal.h"
 #include "sgx_urts.h"
+
+#include "Blind.h"
+#include "Ocall.h"
 
 // For networking
 #include <arpa/inet.h>
@@ -21,13 +26,15 @@
 #endif
 
 #define PORT "9876"
+#define CHUNK_SIZE 1024
 
+#ifndef DEBUG
 #define DEBUG
+#endif
+
 #ifdef DEBUG
 #define DEBUG_LOG(msg) do { std::cout << msg << std::endl; } while(0);
 #endif
-
-#include "sgx_tseal.h"
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
@@ -146,6 +153,30 @@ int bind_and_listen() {
     return sock_fd;
 }
 
+bool unseal_file(const std::string& sealed_name, const std::string& unsealed_name) {
+    size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
+    char sealed_buf[sealed_size];
+    std::ifstream sealed_file(sealed_name, std::ios::binary);
+    std::ofstream unsealed_file(unsealed_name, std::ios::binary);
+    sealed_file.read(sealed_buf, sealed_size);
+    while(sealed_file.gcount() > 0) {
+        char unsealed_buf[CHUNK_SIZE];
+        int unseal_success;
+        // Seal and store
+        sgx_status_t status = unseal(global_eid, &unseal_success, (sgx_sealed_data_t*)sealed_buf, sealed_size, (uint8_t*)unsealed_buf, CHUNK_SIZE);
+        if (status != SGX_SUCCESS || !unseal_success) {
+            DEBUG_LOG("Sealing failed. Aborting.");
+            print_error_message(status);
+            return false;
+        }
+        unsealed_file.write(unsealed_buf, CHUNK_SIZE);
+        memset(sealed_buf, 0, sealed_size);
+        memset(unsealed_buf, 0, CHUNK_SIZE);
+        sealed_file.read(sealed_buf, sealed_size);
+    }
+    return true;
+}
+
 int main(int argc, char const *argv[]) {
     if (initialize_enclave() < 0) {
         std::cout << "Failed to initialize enclave" << std::endl;
@@ -177,38 +208,57 @@ int main(int argc, char const *argv[]) {
         }
         std::cout << client_addr << " connected." << std::endl;
 
-        if (!fork()) { // is child process
-            // Child doesn't need to listen to new connections.
-            close(sock_fd);
-            char buffer[1024];
-            int bytes_recv = 0;
+        char buffer[CHUNK_SIZE];
+        int bytes_recv = 0;
 
-            // Receive blinded hash
-            if (recv(new_conn_fd, buffer, 1024, 0) != 32) {
-                std::cout << "Not SHA-256 digest. Disconnect" << std::endl;
-                close(new_conn_fd);
-                exit(0);
-            }
-
-            // ecall to sign the data
-            // Send back signed data
-
-            // Receive file
-            while((bytes_recv = recv(new_conn_fd, buffer, 1024, 0)) > 0) {
-                buffer[bytes_recv] = '\0';
-                std::cout << buffer;
-                if (send(new_conn_fd, buffer, strlen(buffer), 0) == -1) {
-                    perror("send");
-                }
-                // Seal and store
-            }
-            std::cout << "Close" << std::endl;
+        // Receive blinded hash
+        if ((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 384) {
+            std::cerr << "Blinded hash size error. Disconnect" << std::endl;
             close(new_conn_fd);
             exit(0);
         }
-        // Parent doesn't need to handle the new connection
-        close(new_conn_fd);
-    }
 
+        // ecall to sign the data
+        char signed_buf[384]; // Modulus size of the RSA key
+        blind_sign_digest(buffer, bytes_recv, signed_buf);
+        // Send back signed data
+        if (send(new_conn_fd, signed_buf, 384, 0) == -1) {
+            perror("send");
+        }
+
+        // Receive file
+        std::ofstream output("temp.sealed", std::ios::binary);
+
+        if (initialize_enclave() < 0) {
+            std::cout << "Failed to initialize enclave" << std::endl;
+            return 1;
+        }
+
+        while((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 0) {
+            // TODO: pad if bytes_recv < CHUNK_SIZE
+            size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
+            char sealed_buf[sealed_size];
+            int seal_success;
+            // Seal and store
+            sgx_status_t status = seal(global_eid, &seal_success, (uint8_t*)buffer, CHUNK_SIZE, (sgx_sealed_data_t*)sealed_buf, sealed_size);
+            if (status != SGX_SUCCESS || !seal_success) {
+                DEBUG_LOG("Sealing failed. Aborting.");
+                print_error_message(status);
+                exit(0);
+            }
+            output.write(sealed_buf, sealed_size);
+            memset(sealed_buf, 0, sizeof(sealed_buf));
+            // output.write(buffer, 1024);
+            memset(buffer, 0, sizeof(buffer));
+        }
+        output.close();
+        std::cout << "Close" << std::endl;
+        close(new_conn_fd);
+
+        // Test unseal file
+        unseal_file("temp.sealed", "temp.unsealed");
+
+    }
+    sgx_destroy_enclave(global_eid);
     return 0;
 }
