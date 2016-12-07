@@ -241,10 +241,6 @@ int main(int argc, char const *argv[]) {
         // Receive file
         std::ofstream output("temp.sealed", std::ios::binary);
 
-        if (initialize_enclave() < 0) {
-            std::cout << "Failed to initialize enclave" << std::endl;
-            return 1;
-        }
 
         while((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 0) {
             // TODO: pad if bytes_recv < CHUNK_SIZE
@@ -269,7 +265,6 @@ int main(int argc, char const *argv[]) {
 
         // Test unseal file
         unseal_file("temp.sealed", "temp.unsealed");
-
     }
     sgx_destroy_enclave(global_eid);
     return 0;
