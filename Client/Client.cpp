@@ -1,6 +1,3 @@
-#ifndef _CLIENT_H_
-#define _CLIENT_H_
-
 // Remove for production
 #ifndef DEBUG
 #define DEBUG
@@ -94,8 +91,8 @@ Integer generate_r(Integer& n) {
   Integer r;
   // Scratch Area
 
-  DEBUG_LOG("Bitcount:");
-  DEBUG_LOG(n.BitCount());
+  // DEBUG_LOG("Bitcount:");
+  // DEBUG_LOG(n.BitCount());
 
   CryptoPP::AutoSeededRandomPool rng;
   do {
@@ -185,7 +182,6 @@ std::string encrypt_file_by_chunks(
             new CryptoPP::StringSink(cipher)
         ) // StreamTransformationFilter
     ); // StringSource
-    std::cout << "Cipher size: " << cipher.size() << std::endl;
     out_file << cipher;
 
     for (int i = 0; i < CHUNK_SIZE; ++i) {
@@ -218,7 +214,7 @@ void decrypt_file(const std::string& file_name, const Integer& key) {
   std::ofstream dec(file_name, std::ios::binary);
   std::ifstream enc(file_name + ".enc", std::ios::binary);
 
-  char buf[1024];
+  char buf[CHUNK_SIZE];
   enc.read(buf, sizeof(buf));
   while (enc.gcount() > 0) {
     std::string read(buf, enc.gcount());
@@ -284,7 +280,7 @@ int main(int argc, char const *argv[]) {
   // std::cout << "e: " << e << std::endl;
   // std::cout << "n: " << n << std::endl;
   // std::cout << "r: " << r << std::endl;
-  std::cout << "m: " << m << std::endl;
+  // std::cout << "m: " << m << std::endl;
   #endif
 
   CryptoPP::ModularArithmetic modn(n);
@@ -292,10 +288,10 @@ int main(int argc, char const *argv[]) {
   Integer res = modn.Exponentiate(r, e);
 
   res = modn.Multiply(m, res);
-  DEBUG_LOG("m.r^e mod n = ");
-  DEBUG_LOG(res);
+  // DEBUG_LOG("m.r^e mod n = ");
+  // DEBUG_LOG(res);
 
-  std::cout << "Min encoded size: " << res.MinEncodedSize() << std::endl;
+  // std::cout << "Min encoded size: " << res.MinEncodedSize() << std::endl;
 
   char payload[res.MinEncodedSize()];
 
@@ -338,5 +334,3 @@ int main(int argc, char const *argv[]) {
   DEBUG_LOG("Reached the end. So most probably works as expected.");
   return 0;
 }
-
-#endif // _CLIENT_H_

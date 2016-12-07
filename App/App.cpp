@@ -169,7 +169,19 @@ bool unseal_file(const std::string& sealed_name, const std::string& unsealed_nam
             print_error_message(status);
             return false;
         }
-        unsealed_file.write(unsealed_buf, CHUNK_SIZE);
+
+        size_t write_len = CHUNK_SIZE;
+        // handling last chunk, remove trailing 0s
+        if (sealed_file.peek() < 0) {
+            for (int i = CHUNK_SIZE-1; i >= 0; --i) {
+                if (unsealed_buf[i] == 0) {
+                    --write_len;
+                } else {
+                    break;
+                }
+            }
+        }
+        unsealed_file.write(unsealed_buf, write_len);
         memset(sealed_buf, 0, sealed_size);
         memset(unsealed_buf, 0, CHUNK_SIZE);
         sealed_file.read(sealed_buf, sealed_size);
