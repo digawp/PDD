@@ -300,8 +300,9 @@ int main(int argc, char const *argv[]) {
   Integer received_signature((byte*)payload, bytes_recv);
 
   #ifdef DEBUG
-  Integer hdr = p_sign(res);
-  assert(received_signature == hdr);
+  // NOTE: copy privkey.txt from Proxy to Client directory before running below
+  // Integer hdr = p_sign(res);
+  // assert(received_signature == hdr);
   #endif
 
   Integer hd = modn.Divide(received_signature, r);

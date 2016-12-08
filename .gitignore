@@ -1,10 +1,6 @@
 # Project-specific
-**/*.enc
 **/*.txt
-**/*.sealed
-**/*.unsealed
 launch_token_file
-
 
 # Created by https://www.gitignore.io/api/c,c++
 
