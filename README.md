@@ -11,6 +11,10 @@ Currently the repo only consist of the C.
 
 ## Build and Run
 
+### Server
+
+Server currently is just a placeholder, a slightly modified copy of Proxy.
+
 ### Proxy
 
 Make sure you have Intel SGX-capable hardware and it is enabled on BIOS (disabled by default). Also, ensure you are running from inside the `Proxy` directory.
