@@ -11,22 +11,21 @@ Currently the repo only consist of the C.
 
 ## Build and Run
 
-### P aka Proxy
+### Proxy
 
-Make sure you have Intel SGX-capable hardware and it is enabled on BIOS (disabled by default).
+Make sure you have Intel SGX-capable hardware and it is enabled on BIOS (disabled by default). Also, ensure you are running from inside the `Proxy` directory.
 
     make run SGX_MODE=HW SGX_DEBUG=1
 
 Omit `run` if you just want to compile without running it.
 
-### C aka Client
+### Client
 
-Currently C can only hash a file and carry out blind signature protocol by itself.
+Don't forget to run the proxy first before running the client. Also, ensure you are running from inside the `Client` directory.
 
-Don't forget to run the proxy first before running the client.
+    make ClientApp && ./ClientApp [<file-name-to-upload>]
 
-    make ClientApp
-    ./ClientApp
+If optional arg is left out, it will default to `sample/1`
 
 ## Credits
 
