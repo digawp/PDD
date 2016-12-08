@@ -243,7 +243,6 @@ int main(int argc, char const *argv[]) {
 
 
         while((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 0) {
-            // TODO: pad if bytes_recv < CHUNK_SIZE
             size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
             char sealed_buf[sealed_size];
             int seal_success;
@@ -256,7 +255,6 @@ int main(int argc, char const *argv[]) {
             }
             output.write(sealed_buf, sealed_size);
             memset(sealed_buf, 0, sizeof(sealed_buf));
-            // output.write(buffer, 1024);
             memset(buffer, 0, sizeof(buffer));
         }
         output.close();

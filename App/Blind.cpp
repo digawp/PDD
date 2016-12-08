@@ -26,7 +26,7 @@ void load_rsa_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
 bool blind_sign_digest(const char* blinded_digest, const int blinded_digest_len, char* return_val) {
     Integer digest_val((const byte*)blinded_digest, blinded_digest_len);
 
-    std::cout << "Blinded digest received: " << std::endl << digest_val << std::endl;
+    // std::cout << "Blinded digest received: " << std::endl << digest_val << std::endl;
 
     CryptoPP::RSA::PrivateKey key;
     load_rsa_key(key, "privkey.txt");

@@ -276,22 +276,14 @@ int main(int argc, char const *argv[]) {
   Integer e = pubkey.GetPublicExponent();
   Integer n = pubkey.GetModulus();
   Integer r = generate_r(n);
-  #ifdef DEBUG
-  // std::cout << "e: " << e << std::endl;
-  // std::cout << "n: " << n << std::endl;
-  // std::cout << "r: " << r << std::endl;
-  // std::cout << "m: " << m << std::endl;
-  #endif
 
   CryptoPP::ModularArithmetic modn(n);
 
   Integer res = modn.Exponentiate(r, e);
 
   res = modn.Multiply(m, res);
-  // DEBUG_LOG("m.r^e mod n = ");
+  // DEBUG_LOG("m.r^e mod n (blinded hash) = ");
   // DEBUG_LOG(res);
-
-  // std::cout << "Min encoded size: " << res.MinEncodedSize() << std::endl;
 
   char payload[res.MinEncodedSize()];
 
