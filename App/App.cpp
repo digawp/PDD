@@ -189,6 +189,21 @@ bool unseal_file(const std::string& sealed_name, const std::string& unsealed_nam
     return true;
 }
 
+bool seal_and_append(std::ofstream& file, char* buffer) {
+    size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
+    char sealed_buf[sealed_size];
+    int seal_success;
+    // Seal and store
+    sgx_status_t status = seal(global_eid, &seal_success, (uint8_t*)buffer, CHUNK_SIZE, (sgx_sealed_data_t*)sealed_buf, sealed_size);
+    if (status != SGX_SUCCESS || !seal_success) {
+        DEBUG_LOG("Sealing failed. Aborting.");
+        print_error_message(status);
+        return false;
+    }
+    file.write(sealed_buf, sealed_size);
+    return true;
+}
+
 int main(int argc, char const *argv[]) {
     if (initialize_enclave() < 0) {
         std::cout << "Failed to initialize enclave" << std::endl;
@@ -231,7 +246,7 @@ int main(int argc, char const *argv[]) {
         }
 
         // ecall to sign the data
-        char signed_buf[384]; // Modulus size of the RSA key
+        char signed_buf[384]; // Modulus size of the RSA key in bytes
         blind_sign_digest(buffer, bytes_recv, signed_buf);
         // Send back signed data
         if (send(new_conn_fd, signed_buf, 384, 0) == -1) {
@@ -241,24 +256,12 @@ int main(int argc, char const *argv[]) {
         // Receive file
         std::ofstream output("temp.sealed", std::ios::binary);
 
-
         while((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 0) {
-            size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
-            char sealed_buf[sealed_size];
-            int seal_success;
-            // Seal and store
-            sgx_status_t status = seal(global_eid, &seal_success, (uint8_t*)buffer, CHUNK_SIZE, (sgx_sealed_data_t*)sealed_buf, sealed_size);
-            if (status != SGX_SUCCESS || !seal_success) {
-                DEBUG_LOG("Sealing failed. Aborting.");
-                print_error_message(status);
-                exit(0);
-            }
-            output.write(sealed_buf, sealed_size);
-            memset(sealed_buf, 0, sizeof(sealed_buf));
+            seal_and_append(output, buffer);
             memset(buffer, 0, sizeof(buffer));
         }
         output.close();
-        std::cout << "Close" << std::endl;
+        std::cout << "Done. Close connection." << std::endl;
         close(new_conn_fd);
 
         // Test unseal file
