@@ -26,7 +26,7 @@
 #endif
 
 #define PORT "9876"
-#define CHUNK_SIZE 1024
+#define CHUNK_SIZE 4096
 
 #ifndef DEBUG
 #define DEBUG
@@ -266,6 +266,7 @@ int main(int argc, char const *argv[]) {
 
         // Test unseal file
         unseal_file("temp.sealed", "temp.unsealed");
+        DEBUG_LOG("Done unsealing. Can check for diff.");
     }
     sgx_destroy_enclave(global_eid);
     return 0;

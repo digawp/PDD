@@ -27,7 +27,7 @@
 
 #include "Network.h"
 
-#define CHUNK_SIZE 1024
+#define CHUNK_SIZE 4096
 
 using CryptoPP::Integer;
 using CryptoPP::RSA;
