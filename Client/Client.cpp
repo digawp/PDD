@@ -282,8 +282,8 @@ int main(int argc, char const *argv[]) {
   Integer res = modn.Exponentiate(r, e);
 
   res = modn.Multiply(m, res);
-  // DEBUG_LOG("m.r^e mod n (blinded hash) = ");
-  // DEBUG_LOG(res);
+  DEBUG_LOG("m.r^e mod n (blinded hash) = ");
+  DEBUG_LOG(res);
 
   char payload[res.MinEncodedSize()];
 
