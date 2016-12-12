@@ -309,9 +309,20 @@ int main(int argc, char const *argv[]) {
 
   // Check if we get back the real digest
   Integer should_be_m = modn.Exponentiate(hd, e);
-  #ifdef DEBUG
-  assert(m == should_be_m);
-  #endif
+  if (m != should_be_m) {
+    DEBUG_LOG("Blind signature verification failed. Terminating");
+    exit(1);
+  }
+
+  if (send(socket_fd, file_name.c_str(), file_name.size()) == -1) {
+    perror("Send file_name");
+    exit(1);
+  }
+
+  bytes_recv = receive(socket_fd, payload, sizeof(payload));
+  if (payload[0] != 'o' || payload[1] != 'k') {
+    DEBUG_LOG("Not ok? But try to continue for now...");
+  }
 
   // Encrypt file by chunks
   std::string token = encrypt_file_by_chunks(file_name, hd);

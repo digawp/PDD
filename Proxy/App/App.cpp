@@ -239,10 +239,10 @@ int main(int argc, char const *argv[]) {
         int bytes_recv = 0;
 
         // Receive blinded hash
-        if ((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 384) {
+        if ((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) != 384) {
             std::cerr << "Blinded hash size error. Disconnect" << std::endl;
             close(new_conn_fd);
-            exit(0);
+            continue;
         }
 
         // ecall to sign the data
@@ -251,10 +251,25 @@ int main(int argc, char const *argv[]) {
         // Send back signed data
         if (send(new_conn_fd, signed_buf, 384, 0) == -1) {
             perror("send");
+            continue;
+        }
+        memset(buffer, 0, sizeof(buffer));
+
+        // Receive file name
+        if ((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 256) {
+            std::cerr << "File name longer than 255 chars. Disconnect" << std::endl;
+            close(new_conn_fd);
+            continue;
+        }
+        if (send(new_conn_fd, "ok", 3, 0) == -1) {
+            perror("send");
+            continue;
         }
 
+        std::string filename(buffer, bytes_recv);
+        filename += ".sealed";
         // Receive file
-        std::ofstream output("temp.sealed", std::ios::binary);
+        std::ofstream output(filename, std::ios::binary);
 
         while((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 0) {
             seal_and_append(output, buffer);
