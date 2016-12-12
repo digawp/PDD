@@ -280,8 +280,8 @@ int main(int argc, char const *argv[]) {
         close(new_conn_fd);
 
         // Test unseal file
-        unseal_file("temp.sealed", "temp.unsealed");
-        DEBUG_LOG("Done unsealing. Can check for diff.");
+        // unseal_file(filename, "temp.unsealed");
+        // DEBUG_LOG("Done unsealing. Can check for diff.");
     }
     sgx_destroy_enclave(global_eid);
     return 0;
