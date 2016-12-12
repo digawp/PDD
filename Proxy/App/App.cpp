@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <sstream>
 #include "Enclave_u.h"
 #include "sgx_tseal.h"
 #include "sgx_urts.h"
@@ -38,6 +39,9 @@
 
 /* Global EID shared by multiple threads */
 sgx_enclave_id_t global_eid = 0;
+
+// Chunk number
+uint64_t global_chunk_no = 0;
 
 /* Check error conditions for loading enclave */
 void print_error_message(sgx_status_t ret)
@@ -153,16 +157,41 @@ int bind_and_listen() {
     return sock_fd;
 }
 
-bool unseal_file(const std::string& sealed_name, const std::string& unsealed_name) {
+std::string create_chunk_file_name(uint64_t chunk_no) {
+    std::ostringstream chunk_file_name;
+    chunk_file_name << "chunks/" << chunk_no;
+    return chunk_file_name.str();
+}
+
+bool unseal_and_reconstruct_file(const std::string& file_name) {
+    uint64_t chunk_begin;
+    uint64_t chunk_end;
+    std::ifstream file_desc(file_name + ".desc", std::ios::binary);
+    if (!file_desc) {
+        std::cerr << "Problem opening file_desc when unsealing" << std::endl;
+        exit(1);
+    }
+    file_desc >> chunk_begin;
+    file_desc >> chunk_end;
+    file_desc.close();
+
+    std::ofstream unsealed_file(file_name, std::ios::binary);
+
+    if (!unsealed_file) {
+        std::cerr << "Problem opening file when unsealing" << std::endl;
+        exit(1);
+    }
+
     size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
     char sealed_buf[sealed_size];
-    std::ifstream sealed_file(sealed_name, std::ios::binary);
-    std::ofstream unsealed_file(unsealed_name, std::ios::binary);
-    sealed_file.read(sealed_buf, sealed_size);
-    while(sealed_file.gcount() > 0) {
+    uint64_t current_chunk = chunk_begin;
+    while (current_chunk < chunk_end) {
+        std::ifstream chunk_file(create_chunk_file_name(current_chunk++));
+        chunk_file.read(sealed_buf, sealed_size);
+        chunk_file.close();
+
         char unsealed_buf[CHUNK_SIZE];
         int unseal_success;
-        // Seal and store
         sgx_status_t status = unseal(global_eid, &unseal_success, (sgx_sealed_data_t*)sealed_buf, sealed_size, (uint8_t*)unsealed_buf, CHUNK_SIZE);
         if (status != SGX_SUCCESS || !unseal_success) {
             DEBUG_LOG("Sealing failed. Aborting.");
@@ -172,7 +201,7 @@ bool unseal_file(const std::string& sealed_name, const std::string& unsealed_nam
 
         size_t write_len = CHUNK_SIZE;
         // handling last chunk, remove trailing 0s
-        if (sealed_file.peek() < 0) {
+        if (current_chunk == chunk_end) {
             for (int i = CHUNK_SIZE-1; i >= 0; --i) {
                 if (unsealed_buf[i] == 0) {
                     --write_len;
@@ -184,16 +213,14 @@ bool unseal_file(const std::string& sealed_name, const std::string& unsealed_nam
         unsealed_file.write(unsealed_buf, write_len);
         memset(sealed_buf, 0, sealed_size);
         memset(unsealed_buf, 0, CHUNK_SIZE);
-        sealed_file.read(sealed_buf, sealed_size);
     }
     return true;
 }
 
-bool seal_and_append(std::ofstream& file, char* buffer) {
+bool seal_and_store(std::ofstream& file, char* buffer) {
     size_t sealed_size = sizeof(sgx_sealed_data_t) + CHUNK_SIZE;
     char sealed_buf[sealed_size];
     int seal_success;
-    // Seal and store
     sgx_status_t status = seal(global_eid, &seal_success, (uint8_t*)buffer, CHUNK_SIZE, (sgx_sealed_data_t*)sealed_buf, sealed_size);
     if (status != SGX_SUCCESS || !seal_success) {
         DEBUG_LOG("Sealing failed. Aborting.");
@@ -266,21 +293,30 @@ int main(int argc, char const *argv[]) {
             continue;
         }
 
-        std::string filename(buffer, bytes_recv);
-        filename += ".sealed";
         // Receive file
-        std::ofstream output(filename, std::ios::binary);
+        std::string filename(buffer, bytes_recv);
+        std::ofstream file_desc(filename + ".desc", std::ios::binary);
+        if (!file_desc) {
+            std::cerr << "Error creating file.desc" << std::endl;
+            exit(1);
+        }
 
+        // Starting chunk_no of this file (inclusive)
+        file_desc << global_chunk_no << std::endl;
         while((bytes_recv = recv(new_conn_fd, buffer, CHUNK_SIZE, 0)) > 0) {
-            seal_and_append(output, buffer);
+            std::ofstream chunk_file(create_chunk_file_name(global_chunk_no++), std::ios::binary);
+            seal_and_store(chunk_file, buffer);
+            chunk_file.close();
             memset(buffer, 0, sizeof(buffer));
         }
-        output.close();
+        // Ending chunk_no of this file (exclusive)
+        file_desc << global_chunk_no << std::endl;
+        file_desc.close();
         std::cout << "Done. Close connection." << std::endl;
         close(new_conn_fd);
 
         // Test unseal file
-        // unseal_file(filename, "temp.unsealed");
+        // unseal_and_reconstruct_file(filename);
         // DEBUG_LOG("Done unsealing. Can check for diff.");
     }
     sgx_destroy_enclave(global_eid);
