@@ -1,6 +1,7 @@
 # Project-specific
 **/*.txt
-launch_token_file
+**/enclave.token
+**/samples
 
 # Created by https://www.gitignore.io/api/c,c++
 
