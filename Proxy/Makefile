@@ -32,7 +32,7 @@
 ######## SGX SDK Settings ########
 
 SGX_SDK ?= /opt/intel/sgxsdk
-SGX_MODE ?= SIM
+SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
 ifeq ($(shell getconf LONG_BIT), 32)
@@ -76,10 +76,12 @@ endif
 # Cpp_Files
 Common_Cpp_Files := sgx_utils/sgx_utils.cpp
 Cupload_Cpp_Files := $(wildcard Cupload/*.cpp)
+Pdedup_Cpp_Files := $(wildcard Pdedup/*.cpp)
 
 # Include_Paths
 Common_Include_Paths := -Isgx_utils -I$(SGX_SDK)/include
 Cupload_Include_Paths := -ICupload $(Common_Include_Paths)
+Pdedup_Include_Paths := -IPdedup $(Common_Include_Paths)
 
 # C Flags
 Common_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(Common_Include_Paths)
@@ -97,10 +99,12 @@ else
 endif
 
 Cupload_C_Flags := $(Common_C_Flags) $(Cupload_Include_Paths)
+Pdedup_C_Flags := $(Common_C_Flags) $(Pdedup_Include_Paths)
 
 # Cpp Flags
 Common_Cpp_Flags := $(Common_C_Flags) -std=c++11
 Cupload_Cpp_Flags := $(Cupload_C_Flags) -std=c++11
+Pdedup_Cpp_Flags := $(Pdedup_C_Flags) -std=c++11
 Common_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -lcrypto++
 
 ifneq ($(SGX_MODE), HW)
@@ -112,9 +116,11 @@ endif
 # Cpp Objects
 Common_Cpp_Objects := $(Common_Cpp_Files:.cpp=.o)
 Cupload_Cpp_Objects := $(Cupload_Cpp_Files:.cpp=.o)
+Pdedup_Cpp_Objects := $(Pdedup_Cpp_Files:.cpp=.o)
 
 # Exe Names
 Cupload_Name := cupload
+Pdedup_Name := pdedup
 
 ######## Enclave Settings ########
 
@@ -155,26 +161,49 @@ endif
 endif
 
 
-.PHONY: all run
+.PHONY: all run allc runc alls runs
+
+all: | allc alls
+
+run: runc
 
 ifeq ($(Build_Mode), HW_RELEASE)
-all: $(Cupload_Name) $(Enclave_Name)
+allc: $(Cupload_Name) $(Enclave_Name)
 	@echo "The project has been built in release hardware mode."
-	@echo "Please sign the $(Enclave_Name) first with your signing key before you run the $(App_Name) to launch and access the enclave."
+	@echo "Please sign the $(Enclave_Name) first with your signing key before you run the $(Cupload_Name) to launch and access the enclave."
 	@echo "To sign the enclave use the command:"
 	@echo "   $(SGX_ENCLAVE_SIGNER) sign -key <your key> -enclave $(Enclave_Name) -out <$(Signed_Enclave_Name)> -config $(Enclave_Config_File)"
 	@echo "You can also sign the enclave using an external signing tool. See User's Guide for more details."
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
+
+alls: $(Pdedup_Name) $(Enclave_Name)
+	@echo "The project has been built in release hardware mode."
+	@echo "Please sign the $(Enclave_Name) first with your signing key before you run the $(Pdedup_Name) to launch and access the enclave."
+	@echo "To sign the enclave use the command:"
+	@echo "   $(SGX_ENCLAVE_SIGNER) sign -key <your key> -enclave $(Enclave_Name) -out <$(Signed_Enclave_Name)> -config $(Enclave_Config_File)"
+	@echo "You can also sign the enclave using an external signing tool. See User's Guide for more details."
+	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
+
 else
-all: $(Cupload_Name) $(Signed_Enclave_Name)
+allc: $(Cupload_Name) $(Signed_Enclave_Name)
+
+alls: $(Pdedup_Name) $(Signed_Enclave_Name)
 endif
 
-run: all
+runc: allc
 ifneq ($(Build_Mode), HW_RELEASE)
 	@mkdir -p samples
 	@mkdir -p chunks
 	@$(CURDIR)/$(Cupload_Name)
 	@echo "RUN  =>  $(Cupload_Name) [$(SGX_MODE)|$(SGX_ARCH), OK]"
+endif
+
+runs: alls
+ifneq ($(Build_Mode), HW_RELEASE)
+	@mkdir -p samples
+	@mkdir -p chunks
+	@$(CURDIR)/$(Pdedup_Name)
+	@echo "RUN  =>  $(Pdedup_Name) [$(SGX_MODE)|$(SGX_ARCH), OK]"
 endif
 
 ######## App Objects ########
@@ -226,7 +255,21 @@ $(Cupload_Name): Enclave/Enclave_u.o $(Common_Cpp_Objects) $(Cupload_Cpp_Objects
 	@echo "LINK =>  $@"
 
 
+######## Pdedup Objects ########
+
+Pdedup/%.o: Pdedup/%.cpp
+	@$(CXX) $(Pdedup_Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
+
+$(Pdedup_Name): Enclave/Enclave_u.o $(Common_Cpp_Objects) $(Pdedup_Cpp_Objects)
+	@$(CXX) $^ -o $@ $(Common_Link_Flags)
+	@echo "LINK =>  $@"
+
+
 .PHONY: clean
 
 clean:
-	@rm -f $(Cupload_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(Common_Cpp_Objects) $(Cupload_Cpp_Objects) Enclave/Enclave_u.* $(Enclave_Cpp_Objects) Enclave/Enclave_t.*  samples/* chunks/*
+	@rm -f $(Cupload_Name) $(Pdedup_Name) $(Enclave_Name) $(Signed_Enclave_Name) \
+		$(Common_Cpp_Objects) $(Cupload_Cpp_Objects) $(Pdedup_Cpp_Objects) \
+		Enclave/Enclave_u.* $(Enclave_Cpp_Objects) Enclave/Enclave_t.* \
+		samples/* chunks/*
