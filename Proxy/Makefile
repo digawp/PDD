@@ -73,37 +73,48 @@ else
 	Urts_Library_Name := sgx_urts
 endif
 
-# App_Cpp_Files := App/App.cpp $(wildcard App/Edger8rSyntax/*.cpp) $(wildcard App/TrustedLibrary/*.cpp)
-App_Cpp_Files := $(wildcard App/*.cpp) App/sgx_utils/sgx_utils.cpp
-# App_Include_Paths := -IInclude -IApp -I$(SGX_SDK)/include
-App_Include_Paths := -IApp -I$(SGX_SDK)/include
+# Cpp_Files
+Common_Cpp_Files := sgx_utils/sgx_utils.cpp
+Cupload_Cpp_Files := $(wildcard Cupload/*.cpp)
 
-App_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(App_Include_Paths)
+# Include_Paths
+Common_Include_Paths := -Isgx_utils -I$(SGX_SDK)/include
+Cupload_Include_Paths := -ICupload $(Common_Include_Paths)
+
+# C Flags
+Common_C_Flags := $(SGX_COMMON_CFLAGS) -fPIC -Wno-attributes $(Common_Include_Paths)
 
 # Three configuration modes - Debug, prerelease, release
 #   Debug - Macro DEBUG enabled.
 #   Prerelease - Macro NDEBUG and EDEBUG enabled.
 #   Release - Macro NDEBUG enabled.
 ifeq ($(SGX_DEBUG), 1)
-		App_C_Flags += -DDEBUG -UNDEBUG -UEDEBUG
+		Common_C_Flags += -DDEBUG -UNDEBUG -UEDEBUG
 else ifeq ($(SGX_PRERELEASE), 1)
-		App_C_Flags += -DNDEBUG -DEDEBUG -UDEBUG
+		Common_C_Flags += -DNDEBUG -DEDEBUG -UDEBUG
 else
-		App_C_Flags += -DNDEBUG -UEDEBUG -UDEBUG
+		Common_C_Flags += -DNDEBUG -UEDEBUG -UDEBUG
 endif
 
-App_Cpp_Flags := $(App_C_Flags) -std=c++11
-App_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -lcrypto++
+Cupload_C_Flags := $(Common_C_Flags) $(Cupload_Include_Paths)
+
+# Cpp Flags
+Common_Cpp_Flags := $(Common_C_Flags) -std=c++11
+Cupload_Cpp_Flags := $(Cupload_C_Flags) -std=c++11
+Common_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -lcrypto++
 
 ifneq ($(SGX_MODE), HW)
-	App_Link_Flags += -lsgx_uae_service_sim
+	Common_Link_Flags += -lsgx_uae_service_sim
 else
-	App_Link_Flags += -lsgx_uae_service
+	Common_Link_Flags += -lsgx_uae_service
 endif
 
-App_Cpp_Objects := $(App_Cpp_Files:.cpp=.o)
+# Cpp Objects
+Common_Cpp_Objects := $(Common_Cpp_Files:.cpp=.o)
+Cupload_Cpp_Objects := $(Cupload_Cpp_Files:.cpp=.o)
 
-App_Name := app
+# Exe Names
+Cupload_Name := cupload
 
 ######## Enclave Settings ########
 
@@ -116,9 +127,7 @@ else
 endif
 Crypto_Library_Name := sgx_tcrypto
 
-# Enclave_Cpp_Files := Enclave/Enclave.cpp $(wildcard Enclave/Edger8rSyntax/*.cpp) $(wildcard Enclave/TrustedLibrary/*.cpp)
 Enclave_Cpp_Files := Enclave/Enclave.cpp Enclave/Sealing/Sealing.cpp
-# Enclave_Include_Paths := -IInclude -IEnclave -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/stlport
 Enclave_Include_Paths := -IEnclave -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/stlport
 
 Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector $(Enclave_Include_Paths)
@@ -149,7 +158,7 @@ endif
 .PHONY: all run
 
 ifeq ($(Build_Mode), HW_RELEASE)
-all: $(App_Name) $(Enclave_Name)
+all: $(Cupload_Name) $(Enclave_Name)
 	@echo "The project has been built in release hardware mode."
 	@echo "Please sign the $(Enclave_Name) first with your signing key before you run the $(App_Name) to launch and access the enclave."
 	@echo "To sign the enclave use the command:"
@@ -157,34 +166,30 @@ all: $(App_Name) $(Enclave_Name)
 	@echo "You can also sign the enclave using an external signing tool. See User's Guide for more details."
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
 else
-all: $(App_Name) $(Signed_Enclave_Name)
+all: $(Cupload_Name) $(Signed_Enclave_Name)
 endif
 
 run: all
 ifneq ($(Build_Mode), HW_RELEASE)
 	@mkdir -p samples
 	@mkdir -p chunks
-	@$(CURDIR)/$(App_Name)
-	@echo "RUN  =>  $(App_Name) [$(SGX_MODE)|$(SGX_ARCH), OK]"
+	@$(CURDIR)/$(Cupload_Name)
+	@echo "RUN  =>  $(Cupload_Name) [$(SGX_MODE)|$(SGX_ARCH), OK]"
 endif
 
 ######## App Objects ########
 
-App/Enclave_u.c: $(SGX_EDGER8R) Enclave/Enclave.edl
-	@cd App && $(SGX_EDGER8R) --untrusted ../Enclave/Enclave.edl --search-path ../Enclave --search-path $(SGX_SDK)/include
+Enclave/Enclave_u.c: $(SGX_EDGER8R) Enclave/Enclave.edl
+	@cd Enclave && $(SGX_EDGER8R) --untrusted ./Enclave.edl --search-path . --search-path $(SGX_SDK)/include
 	@echo "GEN  =>  $@"
 
-App/Enclave_u.o: App/Enclave_u.c
-	@$(CC) $(App_C_Flags) -c $< -o $@
+Enclave/Enclave_u.o: Enclave/Enclave_u.c
+	@$(CC) $(Common_C_Flags) -c $< -o $@
 	@echo "CC   <=  $<"
 
-App/%.o: App/%.cpp
-	@$(CXX) $(App_Cpp_Flags) -c $< -o $@
+sgx_utils/%.o: sgx_utils/%.cpp
+	@$(CXX) $(Common_Cpp_Flags) -c $< -o $@
 	@echo "CXX  <=  $<"
-
-$(App_Name): App/Enclave_u.o $(App_Cpp_Objects)
-	@$(CXX) $^ -o $@ $(App_Link_Flags)
-	@echo "LINK =>  $@"
 
 
 ######## Enclave Objects ########
@@ -209,7 +214,19 @@ $(Signed_Enclave_Name): $(Enclave_Name)
 	@$(SGX_ENCLAVE_SIGNER) sign -key Enclave/Enclave_private.pem -enclave $(Enclave_Name) -out $@ -config $(Enclave_Config_File)
 	@echo "SIGN =>  $@"
 
+
+######## Cupload Objects ########
+
+Cupload/%.o: Cupload/%.cpp
+	@$(CXX) $(Cupload_Cpp_Flags) -c $< -o $@
+	@echo "CXX  <=  $<"
+
+$(Cupload_Name): Enclave/Enclave_u.o $(Common_Cpp_Objects) $(Cupload_Cpp_Objects)
+	@$(CXX) $^ -o $@ $(Common_Link_Flags)
+	@echo "LINK =>  $@"
+
+
 .PHONY: clean
 
 clean:
-	@rm -f $(App_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(App_Cpp_Objects) App/Enclave_u.* $(Enclave_Cpp_Objects) Enclave/Enclave_t.* samples/* chunks/*
+	@rm -f $(Cupload_Name) $(Enclave_Name) $(Signed_Enclave_Name) $(Common_Cpp_Objects) $(Cupload_Cpp_Objects) Enclave/Enclave_u.* $(Enclave_Cpp_Objects) Enclave/Enclave_t.*  samples/* chunks/*

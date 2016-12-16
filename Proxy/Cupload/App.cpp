@@ -2,13 +2,13 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include "Enclave_u.h"
+#include "../Enclave/Enclave_u.h"
 #include "sgx_tseal.h"
 #include "sgx_urts.h"
 
 #include "Blind.h"
 #include "Ocall.h"
-#include "sgx_utils/sgx_utils.h"
+#include "../sgx_utils/sgx_utils.h"
 
 // For networking
 #include <arpa/inet.h>
