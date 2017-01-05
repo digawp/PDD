@@ -105,7 +105,7 @@ Pdedup_C_Flags := $(Common_C_Flags) $(Pdedup_Include_Paths)
 Common_Cpp_Flags := $(Common_C_Flags) -std=c++11
 Cupload_Cpp_Flags := $(Cupload_C_Flags) -std=c++11
 Pdedup_Cpp_Flags := $(Pdedup_C_Flags) -std=c++11
-Common_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -lcrypto++
+Common_Link_Flags := $(SGX_COMMON_CFLAGS) -L$(SGX_LIBRARY_PATH) -l$(Urts_Library_Name) -lpthread -lcryptopp
 
 ifneq ($(SGX_MODE), HW)
 	Common_Link_Flags += -lsgx_uae_service_sim
@@ -134,7 +134,7 @@ endif
 Crypto_Library_Name := sgx_tcrypto
 
 Enclave_Cpp_Files := Enclave/Enclave.cpp Enclave/Sealing/Sealing.cpp
-Enclave_Include_Paths := -IEnclave -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/stlport
+Enclave_Include_Paths := -IEnclave -I$(SGX_SDK)/include -I$(SGX_SDK)/include/tlibc -I$(SGX_SDK)/include/stlport -I../topenssl/include
 
 Enclave_C_Flags := $(SGX_COMMON_CFLAGS) -nostdinc -fvisibility=hidden -fpie -fstack-protector $(Enclave_Include_Paths)
 Enclave_Cpp_Flags := $(Enclave_C_Flags) -std=c++03 -nostdinc++
@@ -163,12 +163,12 @@ endif
 
 .PHONY: all run allc runc alls runs
 
-all: | allc alls
+all: | c s
 
 run: runc
 
 ifeq ($(Build_Mode), HW_RELEASE)
-allc: $(Cupload_Name) $(Enclave_Name)
+c: $(Cupload_Name) $(Enclave_Name)
 	@echo "The project has been built in release hardware mode."
 	@echo "Please sign the $(Enclave_Name) first with your signing key before you run the $(Cupload_Name) to launch and access the enclave."
 	@echo "To sign the enclave use the command:"
@@ -176,7 +176,7 @@ allc: $(Cupload_Name) $(Enclave_Name)
 	@echo "You can also sign the enclave using an external signing tool. See User's Guide for more details."
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
 
-alls: $(Pdedup_Name) $(Enclave_Name)
+s: $(Pdedup_Name) $(Enclave_Name)
 	@echo "The project has been built in release hardware mode."
 	@echo "Please sign the $(Enclave_Name) first with your signing key before you run the $(Pdedup_Name) to launch and access the enclave."
 	@echo "To sign the enclave use the command:"
@@ -185,12 +185,12 @@ alls: $(Pdedup_Name) $(Enclave_Name)
 	@echo "To build the project in simulation mode set SGX_MODE=SIM. To build the project in prerelease mode set SGX_PRERELEASE=1 and SGX_MODE=HW."
 
 else
-allc: $(Cupload_Name) $(Signed_Enclave_Name)
+c: $(Cupload_Name) $(Signed_Enclave_Name)
 
-alls: $(Pdedup_Name) $(Signed_Enclave_Name)
+s: $(Pdedup_Name) $(Signed_Enclave_Name)
 endif
 
-runc: allc
+runc: c
 ifneq ($(Build_Mode), HW_RELEASE)
 	@mkdir -p samples
 	@mkdir -p chunks
@@ -198,7 +198,7 @@ ifneq ($(Build_Mode), HW_RELEASE)
 	@echo "RUN  =>  $(Cupload_Name) [$(SGX_MODE)|$(SGX_ARCH), OK]"
 endif
 
-runs: alls
+runs: s
 ifneq ($(Build_Mode), HW_RELEASE)
 	@mkdir -p samples
 	@mkdir -p chunks

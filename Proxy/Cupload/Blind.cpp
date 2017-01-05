@@ -2,6 +2,7 @@
 #include "cryptopp/files.h"
 #include "cryptopp/filters.h"
 #include "cryptopp/nbtheory.h"
+#include "cryptopp/pem.h"
 #include "cryptopp/rsa.h"
 
 using CryptoPP::Integer;
@@ -13,13 +14,9 @@ using CryptoPP::Integer;
  * @param      key        The CryptoPP RSA key instance
  * @param[in]  file_name  The file name
  */
-void load_rsa_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
-  CryptoPP::ByteQueue byte_queue;
-  CryptoPP::FileSource key_file(
-      file_name.c_str(), true, new CryptoPP::Base64Decoder());
-  key_file.TransferTo(byte_queue);
-  byte_queue.MessageEnd();
-  key.Load(byte_queue);
+void load_rsa_key(CryptoPP::RSA::PrivateKey& key, const std::string& file_name) {
+  CryptoPP::FileSource key_file(file_name.c_str(), true);
+  CryptoPP::PEM_Load(key_file, key);
 }
 
 
@@ -29,7 +26,7 @@ bool blind_sign_digest(const char* blinded_digest, const int blinded_digest_len,
     std::cout << "Blinded digest received: " << std::endl << digest_val << std::endl;
 
     CryptoPP::RSA::PrivateKey key;
-    load_rsa_key(key, "privkey.txt");
+    load_rsa_key(key, "private_key.pem");
 
     CryptoPP::ModularArithmetic modn(key.GetModulus());
     // TODO: find out a better way to determine if return_val size is enough

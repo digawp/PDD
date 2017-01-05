@@ -21,6 +21,7 @@
 #include "cryptopp/modes.h"
 #include "cryptopp/nbtheory.h"
 #include "cryptopp/osrng.h"
+#include "cryptopp/pem.h"
 #include "cryptopp/rsa.h"
 #include "cryptopp/sha.h"
 #include "cryptopp/secblock.h"
@@ -112,12 +113,8 @@ Integer generate_r(Integer& n) {
  * @param[in]  file_name  The file name
  */
 void load_rsa_key(CryptoPP::RSAFunction& key, const std::string& file_name) {
-  CryptoPP::ByteQueue byte_queue;
-  CryptoPP::FileSource key_file(
-      file_name.c_str(), true, new CryptoPP::Base64Decoder());
-  key_file.TransferTo(byte_queue);
-  byte_queue.MessageEnd();
-  key.Load(byte_queue);
+  CryptoPP::FileSource key_file(file_name.c_str(), true);
+  CryptoPP::PEM_Load(key_file, key);
 }
 
 /**
@@ -270,7 +267,7 @@ int main(int argc, char const *argv[]) {
 
   // Load (e,n)
   RSA::PublicKey pubkey;
-  load_rsa_key(pubkey, "pubkey.txt");
+  load_rsa_key(pubkey, "public_key.pem");
 
   Integer m((byte const*)digest.data(), 32);
   Integer e = pubkey.GetPublicExponent();
