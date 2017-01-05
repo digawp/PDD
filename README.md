@@ -6,8 +6,9 @@ P and S currently assumes distinct file names from all Cs for simplicity.
 
 ## Requirements
 
-- [Crypto++](https://www.cryptopp.com/) 5.6.5
+- [Crypto++](https://www.cryptopp.com/) 5.6.5 with [PEM Pack](https://www.cryptopp.com/wiki/Pem_pack)
 - [Intel SGX](https://github.com/01org/linux-sgx/)
+- [Trusted OpenSSL library](https://shwetasshinde24.github.io/Panoply/)
 
 ## Build and Run
 
@@ -19,11 +20,17 @@ No Server yet.
 
 Make sure you have Intel SGX-capable hardware and it is enabled on BIOS (disabled by default). Also, ensure you are running from inside the `Proxy` directory.
 
-    make run SGX_MODE=HW SGX_DEBUG=1
+#### CUpload
+
+    make runc SGX_MODE=HW SGX_DEBUG=1
 
 Or you can use `SGX_PRERELEASE=1` instead of `SGX_DEBUG=1` to make it not too verbose.
 
-Omit `run` if you just want to compile without running it.
+Run `make c` with the appropriate arguments if you just want to compile without running it.
+
+#### PDedup
+
+Similar to CUpload, but replace `c` with `s` eg `make s`, `make runs`
 
 ### Client
 
