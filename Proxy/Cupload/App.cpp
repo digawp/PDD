@@ -244,8 +244,11 @@ int main(int argc, char const *argv[]) {
         close(new_conn_fd);
 
         // Test unseal file
-        // unseal_and_reconstruct_file(filename);
-        // DEBUG_LOG("Done unsealing. Can check for diff.");
+        // if (unseal_and_reconstruct_file(filename)) {
+        //     std::cout << "Done unsealing. Can check for diff." << std::endl;
+        // } else {
+        //     std::cout << "Something wrong when unsealing." << std::endl;
+        // }
     }
     sgx_destroy_enclave(global_eid);
     return 0;

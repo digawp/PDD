@@ -48,10 +48,13 @@ int main(int argc, char const *argv[]) {
     }
 
     std::vector<std::string> file_names;
-    get_all_files_in_dir("samples", file_names);
+    get_all_files_in_dir("chunks", file_names);
 
-    sgx_status_t status = set_counters(global_eid, NULL, file_names.size());
-    if (!is_ecall_successful(status, "Set counters failed.")) {
+    std::cout << "Get " << file_names.size() << std::endl;
+
+    int init_success = 0;
+    sgx_status_t status = init_dedup(global_eid, &init_success, file_names.size());
+    if (!is_ecall_successful(status, "Set counters failed.") || !init_success) {
         return 1;
     }
     // int socket_fd = connect_to_s();

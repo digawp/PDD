@@ -1,6 +1,12 @@
 enclave {
     from "Sealing/Sealing.edl" import *;
 
+    trusted {
+        public int init_dedup(uint32_t max);
+
+        public sgx_status_t label_chunk([in, size=sealed_size]sgx_sealed_data_t* sealed_data, size_t sealed_size);
+    };
+
     untrusted {
         /* define OCALLs here. */
         void ocall_print([in, string]const char* str);
